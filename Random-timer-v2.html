@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Random GO / REST Timer</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#111827;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.app{max-width:720px;margin:auto;padding:14px 12px 40px}.screen,.card,.stat{border:1px solid #475569;border-radius:20px;background:#1f2937}.screen{padding:26px 12px;text-align:center}.screen.rest{background:#c62828;border-color:#c62828}.screen.go{background:#16853a;border-color:#16853a}.phase{font-size:clamp(36px,11vw,68px);font-weight:800}.type{border:3px solid;border-radius:10px;padding:0 .18em}.pace{font-size:clamp(22px,6vw,34px);font-weight:700;margin-top:5px}.count{font-size:clamp(90px,30vw,180px);font-weight:800;line-height:1;margin:8px 0;font-variant-numeric:tabular-nums}.hide{visibility:hidden}.muted{color:#cbd5e1;font-size:14px}.screen .muted{color:#fff;opacity:.9}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}.stat{text-align:center;padding:13px}.value{font-size:30px;font-weight:750}.buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}button{min-height:52px;border:0;border-radius:13px;background:#2563eb;color:#fff;font-size:17px;font-weight:750}button.alt{background:#334155;border:1px solid #475569}button:disabled{opacity:.4}.full{width:100%}.card{padding:15px;margin-top:11px}h2{font-size:18px;margin:0 0 5px}p{font-size:14px;color:#cbd5e1;margin:0 0 11px}.inputs2,.inputs3{display:grid;gap:8px}.inputs2{grid-template-columns:1fr 1fr}.inputs3{grid-template-columns:repeat(3,1fr)}label{font-size:14px;color:#cbd5e1}input{width:100%;margin-top:4px;padding:10px 7px;border:1px solid #475569;border-radius:10px;background:#0f172a;color:#fff;font-size:17px}.paceRows{display:grid;gap:8px}.total{display:flex;justify-content:space-between;margin-top:11px;font-weight:700}.ok{color:#4ade80}.bad{color:#fb7185}.decision{text-align:center}.decisionResult{font-size:48px;font-weight:850;min-height:58px}#decisionBtn{width:100%;margin:4px 0 8px}
+</style>
+</head>
+<body><main class="app">
+<section id="screen" class="screen"><div class="phase"><span id="phase">READY</span> <span id="type" class="type" hidden>A</span></div><div id="pace" class="pace" hidden>Normal</div><div id="count" class="count">—</div><div id="status" class="muted">Starts with REST · Round 1</div></section>
+<div class="grid2"><div class="stat"><div class="muted">Session time</div><div id="session" class="value">00:00</div></div><div class="stat"><div class="muted">Round</div><div id="round" class="value">0</div></div></div>
+<div class="buttons"><button id="start">Start</button><button id="pause" class="alt">Pause</button><button id="reset" class="alt">Reset</button></div>
+<button id="hide" class="alt full">Hide Time</button>
+<section class="card decision"><div id="result" class="decisionResult">—</div><button id="decision" disabled>YES / NO</button><div id="decisionHint" class="muted">Available once per round during GO only.</div></section>
+<section class="card"><h2>Random timer ranges</h2><p>A new random duration is chosen for every REST and GO.</p><div class="inputs2">
+<label>GO minimum<input id="goMin" type="number" min="1" value="10"></label><label>GO maximum<input id="goMax" type="number" min="1" value="60"></label>
+<label>REST minimum<input id="restMin" type="number" min="1" value="10"></label><label>REST maximum<input id="restMax" type="number" min="1" value="30"></label></div></section>
+<section class="card"><h2>Round type odds</h2><p>A/B/C is selected once per round and stays for REST + GO.</p><div class="inputs3">
+<label>A (%)<input id="A" type="number" min="0" max="100" value="34"></label><label>B (%)<input id="B" type="number" min="0" max="100" value="33"></label><label>C (%)<input id="C" type="number" min="0" max="100" value="33"></label></div><div class="total"><span>Total</span><span id="typeTotal" class="ok">100%</span></div></section>
+<section class="card"><h2>Pace odds</h2><p>Pace is independent from A/B/C and stays for the entire round.</p><div class="paceRows">
+<label>Very Slow (%)<input id="verySlow" type="number" min="0" max="100" value="20"></label>
+<label>Slow (%)<input id="slow" type="number" min="0" max="100" value="20"></label>
+<label>Normal (%)<input id="normal" type="number" min="0" max="100" value="20"></label>
+<label>Fast (%)<input id="fast" type="number" min="0" max="100" value="20"></label>
+<label>Very Fast (%)<input id="veryFast" type="number" min="0" max="100" value="20"></label>
+</div><div class="total"><span>Total</span><span id="paceTotal" class="ok">100%</span></div></section>
+<section class="card"><h2>YES / NO odds</h2><p>Available once per round and only while GO is actively running.</p><div class="inputs2"><label>YES (%)<input id="yes" type="number" min="0" max="100" value="50"></label><div class="stat"><div class="muted">NO</div><div id="no" class="value">50%</div></div></div></section>
+<section class="card"><div id="validation" class="muted">Ready to start.</div></section>
+</main>
+<script>
+(()=>{const $=x=>document.getElementById(x);let phase=null,type=null,pace=null,remaining=0,running=false,deadline=0,tick=null,elapsed=0,runStarted=0,round=0,used=false,hidden=false;
+const pct=id=>{let v=Number($(id).value);return Number.isFinite(v)?Math.max(0,Math.min(100,v)):0};
+const oddsType=()=>({A:pct("A"),B:pct("B"),C:pct("C")});
+const oddsPace=()=>({"Very Slow":pct("verySlow"),Slow:pct("slow"),Normal:pct("normal"),Fast:pct("fast"),"Very Fast":pct("veryFast")});
+const sum=o=>Object.values(o).reduce((a,b)=>a+b,0),valid=o=>Math.abs(sum(o)-100)<.0001;
+function pick(o){let r=Math.random()*sum(o);for(const[k,v]of Object.entries(o)){r-=v;if(r<0)return k}return Object.keys(o).at(-1)}
+function bounds(k){let a=parseInt($(k==="GO"?"goMin":"restMin").value)||1,b=parseInt($(k==="GO"?"goMax":"restMax").value)||1;a=Math.max(1,a);b=Math.max(1,b);return a>b?[b,a]:[a,b]}
+function settings(){let t=oddsType(),p=oddsPace(),tv=valid(t),pv=valid(p);$("typeTotal").textContent=sum(t)+"%";$("paceTotal").textContent=sum(p)+"%";$("typeTotal").className=tv?"ok":"bad";$("paceTotal").className=pv?"ok":"bad";$("no").textContent=(100-pct("yes"))+"%";$("validation").textContent=tv&&pv?"Ready to start.":"Type odds and Pace odds must each equal exactly 100%.";if(!running)$("start").disabled=!(tv&&pv)}
+function fmt(ms){let t=Math.floor(ms/1000),h=Math.floor(t/3600),m=Math.floor(t%3600/60),s=t%60;return(h?String(h).padStart(2,"0")+":":"")+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0")}
+function render(){$("phase").textContent=phase||"READY";$("type").hidden=!phase;$("pace").hidden=!phase;if(phase){$("type").textContent=type;$("pace").textContent=pace}$("count").textContent=phase?Math.max(0,remaining):"—";$("count").classList.toggle("hide",hidden&&!!phase);$("hide").textContent=hidden?"Show Time":"Hide Time";$("session").textContent=fmt(elapsed+(running?Date.now()-runStarted:0));$("round").textContent=round;$("screen").classList.toggle("rest",phase==="REST");$("screen").classList.toggle("go",phase==="GO");$("status").textContent=!phase?"Starts with REST · Round 1":"Round "+round+" · "+(running?"Running":"Paused");let avail=running&&phase==="GO"&&!used;$("decision").disabled=!avail;$("decisionHint").textContent=phase!=="GO"?"Available once per round during GO only.":used?"Already used this round.":!running?"Resume the timer to use it.":"Available now."}
+function begin(k){if(k==="REST"){round++;type=pick(oddsType());pace=pick(oddsPace());used=false;$("result").textContent="—"}phase=k;let[a,b]=bounds(k);remaining=Math.floor(Math.random()*(b-a+1))+a;deadline=Date.now()+remaining*1000;render()}
+function loop(){if(!running)return;let left=Math.ceil((deadline-Date.now())/1000);if(left<=0)begin(phase==="REST"?"GO":"REST");else remaining=left;render();tick=setTimeout(loop,100)}
+$("start").onclick=()=>{if(running||!valid(oddsType())||!valid(oddsPace()))return;if(!phase)begin("REST");else deadline=Date.now()+remaining*1000;running=true;runStarted=Date.now();clearTimeout(tick);render();loop()};
+$("pause").onclick=()=>{if(!running)return;remaining=Math.max(1,Math.ceil((deadline-Date.now())/1000));elapsed+=Date.now()-runStarted;running=false;clearTimeout(tick);render();settings()};
+$("reset").onclick=()=>{if(running)elapsed+=Date.now()-runStarted;running=false;clearTimeout(tick);phase=type=pace=null;remaining=elapsed=runStarted=round=0;used=false;$("result").textContent="—";render();settings()};
+$("hide").onclick=()=>{hidden=!hidden;render()};
+$("decision").onclick=()=>{if(!running||phase!=="GO"||used)return;used=true;$("result").textContent=Math.random()*100<pct("yes")?"YES":"NO";render()};
+["A","B","C","verySlow","slow","normal","fast","veryFast","yes"].forEach(id=>$(id).addEventListener("input",settings));settings();render()})();
+</script></body></html>
